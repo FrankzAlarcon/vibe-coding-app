@@ -5,14 +5,14 @@ import { z } from "zod";
 export const appRouter = createTRPCRouter({
     invoke: baseProcedure.input(
         z.object({
-            text: z.string()
+            value: z.string()
         })
     ).mutation(async ({ input }) => {
         try {
             await inngest.send({
                 name: "test/hello.world",
                 data: {
-                    text: input.text  // Use consistent field naming
+                    value: input.value  // Use consistent field naming
                 }
             });
             return { success: true, message: "Event sent successfully" };
