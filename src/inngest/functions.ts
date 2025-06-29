@@ -26,8 +26,8 @@ export const codeAgentFunction = inngest.createFunction(
       system: PROMPT,
       description: "An expert coding Agent",
       model: openai({
-        // model: "gpt-4.1",
-        model: "gpt-4.1-mini",
+        model: "gpt-4.1",
+        // model: "gpt-4.1-mini",
         defaultParameters: {
           temperature: 0.1
         }
@@ -161,7 +161,8 @@ export const codeAgentFunction = inngest.createFunction(
         data: {
           content: "Something went wrong. Please try again.",
           role: MessageRole.ASSISTANT,
-          type: MessageType.RESULT
+          type: MessageType.RESULT,
+          projectId: event.data.projectId
         }
       })
     }
@@ -174,6 +175,7 @@ export const codeAgentFunction = inngest.createFunction(
     await step.run("save-result", async () => {
       return await prisma.message.create({
         data: {
+          projectId: event.data.projectId,
           content: result.state.data.summary,
           role: MessageRole.ASSISTANT,
           type: MessageType.RESULT,
