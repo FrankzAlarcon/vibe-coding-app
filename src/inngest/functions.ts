@@ -1,24 +1,32 @@
-import { openai, createAgent, createTool, createNetwork } from "@inngest/agent-kit";
+import { openai, createAgent, createTool, createNetwork, Tool } from "@inngest/agent-kit";
 import { inngest } from "./client";
 import { Sandbox } from '@e2b/code-interpreter'
 import { getSandbox, lastAssistantTextMessageContent } from "./utils";
 import { z } from "zod";
 import { PROMPT } from "@/prompt";
+import { prisma } from "@/lib/db";
+import { MessageRole, MessageType } from "@/generated/prisma";
 
-export const helloWorld = inngest.createFunction(
-  { id: "hello-world" },
-  { event: "test/hello.world" },
+interface CodeAgentState {
+  summary: string
+  files: { [path: string]: string }
+}
+
+export const codeAgentFunction = inngest.createFunction(
+  { id: "code-agent" },
+  { event: "code-agent/run" },
   async ({ event, step }) => {
     const sandboxId = await step.run("get-sandbox-id", async () => {
       const sandbox = await Sandbox.create("vibe-coding-app-frankz")
       return sandbox.sandboxId
     })
     // Create a new agent with a system prompt (you can add optional tools, too)
-    const codeAgent = createAgent({
+    const codeAgent = createAgent<CodeAgentState>({
       name: "code-agent",
       system: PROMPT,
       description: "An expert coding Agent",
       model: openai({
+        // model: "gpt-4.1",
         model: "gpt-4.1-mini",
         defaultParameters: {
           temperature: 0.1
@@ -65,7 +73,7 @@ export const helloWorld = inngest.createFunction(
           }),
           handler: async (
             { files },
-            { step, network }
+            { step, network }: Tool.Options<CodeAgentState>
           ) => {
             // 
             const newFiles = await step?.run("createOrUpdateFiles", async () => {
@@ -132,7 +140,7 @@ export const helloWorld = inngest.createFunction(
       }
     });
 
-    const network = createNetwork({
+    const network = createNetwork<CodeAgentState>({
       name: "coding-agent-network",
       agents: [codeAgent],
       maxIter: 15,
@@ -146,11 +154,38 @@ export const helloWorld = inngest.createFunction(
     })
 
     const result = await network.run(event.data.value)
-    
+
+    const isError = !result.state.data.summary || Object.keys(result.state.data.files || {}).length === 0
+    if (isError) {
+      return await prisma.message.create({
+        data: {
+          content: "Something went wrong. Please try again.",
+          role: MessageRole.ASSISTANT,
+          type: MessageType.RESULT
+        }
+      })
+    }
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await getSandbox(sandboxId)
       const host = sandbox.getHost(3000)
       return `https://${host}`
+    })
+
+    await step.run("save-result", async () => {
+      return await prisma.message.create({
+        data: {
+          content: result.state.data.summary,
+          role: MessageRole.ASSISTANT,
+          type: MessageType.RESULT,
+          fragment: {
+            create: {
+              sandboxUrl,
+              title: "Fragment",
+              files: result.state.data.files
+            }
+          }
+        }
+      })
     })
 
     return {

@@ -1,35 +1,8 @@
-import { inngest } from "@/inngest/client";
-import { baseProcedure, createTRPCRouter } from "../init";
-import { z } from "zod";
+import { createTRPCRouter } from "../init";
+import { messagesRouter } from "@/modules/messages/server/procedures";
 
 export const appRouter = createTRPCRouter({
-    invoke: baseProcedure.input(
-        z.object({
-            value: z.string()
-        })
-    ).mutation(async ({ input }) => {
-        try {
-            await inngest.send({
-                name: "test/hello.world",
-                data: {
-                    value: input.value  // Use consistent field naming
-                }
-            });
-            return { success: true, message: "Event sent successfully" };
-        } catch (error) {
-            throw new Error("Failed to send event");
-        }
-    }),
-    createAI: baseProcedure
-    .input(
-        z.object({
-            text: z.string()
-        })
-    ).query((opts) => {
-        return {
-            greeting: `Hello ${opts.input.text}`
-        }
-    })
+    messages: messagesRouter
 })
 
 export type AppRouter = typeof appRouter
