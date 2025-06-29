@@ -161,7 +161,7 @@ export const codeAgentFunction = inngest.createFunction(
         data: {
           content: "Something went wrong. Please try again.",
           role: MessageRole.ASSISTANT,
-          type: MessageType.RESULT,
+          type: MessageType.ERROR,
           projectId: event.data.projectId
         }
       })
