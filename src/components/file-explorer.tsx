@@ -2,7 +2,14 @@ import { Fragment, useCallback, useMemo, useState } from "react"
 import { Hint } from "./hint"
 import { Button } from "./ui/button"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./ui/resizable"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, BreadcrumbEllipsis } from "./ui/breadcrumb"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+  BreadcrumbEllipsis
+} from "./ui/breadcrumb"
 import { CopyCheckIcon, CopyIcon } from "lucide-react"
 import { CodeView } from "./code-view"
 import { convertFilesToTreeItems } from "@/lib/utils"

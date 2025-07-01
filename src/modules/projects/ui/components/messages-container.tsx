@@ -20,6 +20,7 @@ export const MessagesContainer = ({
   setActiveFragment
 }: Props) => {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const lastAssistantMessageIdRef = useRef<string | null>(null)
   const trpc = useTRPC()
   const { data: messages } = useSuspenseQuery(trpc.messages.getMany.queryOptions({
       projectId
@@ -28,16 +29,18 @@ export const MessagesContainer = ({
     refetchInterval: 5000
   }))
 
-  // TODO: This is causing a bug where the active fragment is not set when the page is loaded
-  // useEffect(() => {
-  //   const lastAssistantMessageWithFragment = messages.findLast(
-  //     (message) => message.role === MessageRole.ASSISTANT && !!message.fragment
-  //   )
-
-  //   if (lastAssistantMessageWithFragment && lastAssistantMessageWithFragment.fragment) {
-  //     setActiveFragment(lastAssistantMessageWithFragment.fragment)
-  //   }
-  // }, [messages, setActiveFragment])
+  useEffect(() => {
+    const lastAssistantMessageWithFragment = messages.findLast(
+      (message) => message.role === MessageRole.ASSISTANT && !!message.fragment
+    )
+    if (
+      lastAssistantMessageWithFragment && lastAssistantMessageWithFragment.fragment &&
+      lastAssistantMessageWithFragment.id !== lastAssistantMessageIdRef.current
+    ) {
+      setActiveFragment(lastAssistantMessageWithFragment.fragment)
+      lastAssistantMessageIdRef.current = lastAssistantMessageWithFragment.id
+    }
+  }, [messages, setActiveFragment])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView()
