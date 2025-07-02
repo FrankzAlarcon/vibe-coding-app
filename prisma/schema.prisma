@@ -58,6 +58,7 @@ model Fragment {
 model Project {
   id String @id @default(uuid())
   name String
+  userId String @map("user_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -65,3 +66,4 @@ model Project {
 
   @@map("projects")
 }
+
