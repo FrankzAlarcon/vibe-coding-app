@@ -22,7 +22,7 @@ interface Props {
     projectId: string
 }
 
-export const ProjectView = ({ projectId}: Props) => {
+export const ProjectView = ({ projectId }: Props) => {
     const [activeFragment, setActiveFragment] = useState<Fragment | null>(null)
     const [tabState, setTabState] = useState<"preview" | "code">("preview")
     const { has } = useAuth()
