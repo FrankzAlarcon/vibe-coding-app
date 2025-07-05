@@ -1,11 +1,12 @@
-import { openai, createAgent, createTool, createNetwork, Tool } from "@inngest/agent-kit";
+import { openai, createAgent, createTool, createNetwork, Tool, type Message, createState } from "@inngest/agent-kit";
 import { inngest } from "./client";
 import { Sandbox } from '@e2b/code-interpreter'
 import { getSandbox, lastAssistantTextMessageContent } from "./utils";
 import { z } from "zod";
-import { PROMPT } from "@/prompt";
+import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 import { prisma } from "@/lib/db";
 import { MessageRole, MessageType } from "@/generated/prisma";
+import { parseAgentOutput } from "@/lib/utils";
 
 interface CodeAgentState {
   summary: string
@@ -20,6 +21,36 @@ export const codeAgentFunction = inngest.createFunction(
       const sandbox = await Sandbox.create("vibe-coding-app-frankz")
       return sandbox.sandboxId
     })
+    const previousMessages = await step.run('get-previous-messages', async () => {
+      const formattedMessages: Message[] = []
+
+      const messages = await prisma.message.findMany({
+        where: {
+          projectId: event.data.projectId
+        },
+        orderBy: {
+          createdAt: "desc" // TODO: change to asc if AI doesn't work
+        }
+      })
+
+      for (const message of messages) {
+        formattedMessages.push({
+          type: 'text',
+          role: message.role === MessageRole.ASSISTANT ? 'assistant' : 'user',
+          content: message.content
+        })
+      }
+
+      return formattedMessages
+    })
+
+    const state = createState<CodeAgentState>({
+      summary: "",
+      files: {}
+    }, {
+      messages: previousMessages
+    })
+
     // Create a new agent with a system prompt (you can add optional tools, too)
     const codeAgent = createAgent<CodeAgentState>({
       name: "code-agent",
@@ -144,6 +175,7 @@ export const codeAgentFunction = inngest.createFunction(
       name: "coding-agent-network",
       agents: [codeAgent],
       maxIter: 15,
+      defaultState: state,
       router: async ({ network }) => {
         const summary = network.state.data.summary
         if (summary) {
@@ -153,7 +185,28 @@ export const codeAgentFunction = inngest.createFunction(
       }
     })
 
-    const result = await network.run(event.data.value)
+    const result = await network.run(event.data.value, { state })
+
+    const fragmentTitleGenerator = createAgent({
+      name: "fragment-title-generator",
+      description: "An expert title generator for code fragments",
+      system: FRAGMENT_TITLE_PROMPT,
+      model: openai({
+        model: "gpt-4.1-mini",
+      }),
+    })
+
+    const responseGenerator = createAgent({
+      name: "response-generator",
+      description: "An expert response generator",
+      system: RESPONSE_PROMPT,
+      model: openai({
+        model: "gpt-4.1-mini",
+      }),
+    })
+
+    const { output: fragmentTitleOutput } = await fragmentTitleGenerator.run(result.state.data.summary)
+    const { output: responseOutput } = await responseGenerator.run(result.state.data.summary)
 
     const isError = !result.state.data.summary || Object.keys(result.state.data.files || {}).length === 0
     if (isError) {
@@ -176,13 +229,13 @@ export const codeAgentFunction = inngest.createFunction(
       return await prisma.message.create({
         data: {
           projectId: event.data.projectId,
-          content: result.state.data.summary,
+          content: parseAgentOutput(responseOutput),
           role: MessageRole.ASSISTANT,
           type: MessageType.RESULT,
           fragment: {
             create: {
               sandboxUrl,
-              title: "Fragment",
+              title: parseAgentOutput(fragmentTitleOutput),
               files: result.state.data.files
             }
           }
